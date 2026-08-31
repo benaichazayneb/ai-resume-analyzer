@@ -1,0 +1,23 @@
+version: "3.9"
+
+# ==========================================================
+# Phase 1 : uniquement MongoDB pour permettre un dev local
+# sans installer Mongo manuellement.
+#
+# Les services "server", "client" et "ml-service" seront
+# ajoutés progressivement dans les phases suivantes, une fois
+# que chaque Dockerfile correspondant aura été créé.
+# ==========================================================
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: ai-resume-analyzer-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
