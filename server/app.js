@@ -16,6 +16,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 
 const healthRoutes = require("./routes/healthRoutes");
+const authRoutes = require("./routes/authRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
@@ -36,7 +37,7 @@ app.get("/", (req, res) => {
 app.use("/api/health", healthRoutes);
 
 // Les routes suivantes seront ajoutées progressivement :
-// app.use("/api/auth", authRoutes);          // Phase 4
+  app.use("/api/auth", authRoutes);
 // app.use("/api/resumes", resumeRoutes);     // Phase 6
 // app.use("/api/jobs", jobRoutes);           // Phase 10
 // app.use("/api/analysis", analysisRoutes);  // Phase 10
