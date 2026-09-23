@@ -1,10 +1,6 @@
 /**
- * healthController.js
- * ---------------------------------------------------------
  * Contrôleur simple permettant de vérifier que l'API est en
- * ligne. Utilisé pour les checks de santé (health checks) en
- * développement, en CI et en production (ex: monitoring, load
- * balancer, docker healthcheck).
+ * ligne.
  */
 
 const getHealth = (req, res) => {

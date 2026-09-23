@@ -1,23 +1,20 @@
-/**
- * db.js
- * ---------------------------------------------------------
- * Connexion à MongoDB via Mongoose.
- *
- * Appelée une seule fois au démarrage du serveur (server.js),
- * avant app.listen(). En cas d'échec de connexion, le process
- * s'arrête : on ne veut jamais démarrer une API dont la base de
- * données n'est pas joignable.
- */
 
 const mongoose = require("mongoose");
 
 const connectDB = async () => {
+  if (!process.env.MONGO_URI) {
+    throw new Error("MONGO_URI is not defined in the environment");
+  }
+
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`✅ MongoDB connected: ${conn.connection.host}/${conn.connection.name}`);
+    await mongoose.connect(process.env.MONGO_URI);
+
+    console.log(
+      `MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`
+    );
   } catch (error) {
-    console.error(`❌ MongoDB connection error: ${error.message}`);
-    process.exit(1);
+    console.error("MongoDB connection error:", error.message);
+    throw error;
   }
 };
 

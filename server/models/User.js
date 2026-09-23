@@ -4,26 +4,39 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, "Name is required"],
+      required: true,
       trim: true,
     },
+
     email: {
       type: String,
-      required: [true, "Email is required"],
+      required: true,
       unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, "Invalid email format"],
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        "Please enter a valid email",
+      ],
     },
-    // Stocke le hash bcrypt, jamais le mot de passe en clair (voir section 26)
+
     password: {
       type: String,
-      required: [true, "Password is required"],
+      required: true,
       minlength: 6,
-      select: false, // exclu par défaut des requêtes find()
+      select: false,
+    },
+
+    role: {
+      type: String,
+      enum: ["CANDIDATE", "RECRUITER"],
+      default: "CANDIDATE",
+      required: true,
     },
   },
-  { timestamps: true } // ajoute automatiquement createdAt / updatedAt
+  {
+    timestamps: true,
+  }
 );
 
 module.exports = mongoose.model("User", userSchema);

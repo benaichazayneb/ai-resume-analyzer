@@ -9,19 +9,49 @@ const jobDescriptionSchema = new mongoose.Schema(
       index: true,
     },
 
-    title: { type: String, required: true, trim: true },
-    description: { type: String, required: true },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-    // Résultat de l'analyse de l'offre (section 10)
+    description: {
+      type: String,
+      required: true,
+    },
+
     extractedSkills: {
       requiredSkills: [{ type: String }],
       preferredSkills: [{ type: String }],
     },
-    experienceRequirements: { type: String, default: "" },
-    educationRequirements: { type: String, default: "" },
+
+    experienceRequirements: {
+      type: String,
+      default: "",
+    },
+
+    educationRequirements: {
+      type: String,
+      default: "",
+    },
+
     keywords: [{ type: String }],
+
+    status: {
+      type: String,
+      enum: ["DRAFT", "PUBLISHED", "CLOSED"],
+      default: "DRAFT",
+      required: true,
+    },
+
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 module.exports = mongoose.model("JobDescription", jobDescriptionSchema);
