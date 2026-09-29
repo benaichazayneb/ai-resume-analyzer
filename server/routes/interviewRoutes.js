@@ -10,6 +10,7 @@ const {
   startInterview,
   getInterviewSession,
   submitInterviewAnswer,
+  uploadInterviewVideo,
 } = require("../controllers/interviewSessionController");
 
 const {
@@ -17,36 +18,54 @@ const {
   getInterviewAnalysis,
 } = require("../controllers/interviewAnalysisController");
 
-// =====================================================
-// ANALYSE IA DE L'ENTRETIEN
-// =====================================================
+const uploadInterviewVideoMiddleware =
+  require("../middleware/interviewUpload");
 
-// Lancer l'analyse IA d'un entretien terminé
+// ============================================================
+// ANALYSE
+// ============================================================
+
 router.post(
   "/analysis/:applicationId",
   analyzeInterviewSession
 );
 
-// Récupérer l'analyse IA
 router.get(
   "/analysis/:applicationId",
   getInterviewAnalysis
 );
 
-// =====================================================
+// ============================================================
 // ENTRETIEN
-// =====================================================
+// ============================================================
 
-// Vérifier l'invitation
-router.get("/:token", getInterview);
+router.get("/:token",getInterview);
 
-// Démarrer l'entretien IA
-router.post("/:token/start", startInterview);
+router.post(
+  "/:token/start",
+  startInterview
+);
 
-// Récupérer la question courante
-router.get("/:token/session", getInterviewSession);
+router.get(
+  "/:token/session",
+  getInterviewSession
+);
 
-// Enregistrer une réponse et passer à la suivante
-router.post("/:token/answer", submitInterviewAnswer);
+router.post(
+  "/:token/answer",
+  submitInterviewAnswer
+);
+
+// ============================================================
+// VIDÉO
+// ============================================================
+
+router.post(
+  "/:token/video",
+  uploadInterviewVideoMiddleware.single(
+    "video"
+  ),
+  uploadInterviewVideo
+);
 
 module.exports = router;

@@ -9,27 +9,36 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
 
+// Public pages
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
+// Candidate
 import CandidateDashboard from "./pages/CandidateDashboard";
-import RecruiterDashboard from "./pages/RecruiterDashboard";
-
 import UploadResume from "./pages/UploadResume";
 import Analyze from "./pages/Analyze";
 import Results from "./pages/Results";
 import History from "./pages/History";
-import Profile from "./pages/Profile";
-
-import CreateJob from "./pages/CreateJob";
+import Applications from "./pages/Applications";
 import Jobs from "./pages/Jobs";
 import JobDetails from "./pages/JobDetails";
-import Applications from "./pages/Applications";
-import RecruiterApplications from "./pages/RecruiterApplications";
 
-import NotFound from "./pages/NotFound";
+// Shared
+import Profile from "./pages/Profile";
+
+// Recruiter
+import RecruiterDashboard from "./pages/RecruiterDashboard";
+import CreateJob from "./pages/CreateJob";
+import RecruiterApplications from "./pages/RecruiterApplications";
+import RecruiterInterviewReport from "./pages/RecruiterInterviewReport";
+
+// Interview
 import Interview from "./pages/Interview";
+
+// Other
+import NotFound from "./pages/NotFound";
+
 
 function RoleHome() {
   const { user } = useAuth();
@@ -46,18 +55,46 @@ function RoleHome() {
   );
 }
 
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route element={<MainLayout />}>
-            {/* Public */}
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
 
-            {/* Dashboard selon le rôle */}
+          {/* ================================================= */}
+          {/* PUBLIC PAGES                                      */}
+          {/* ================================================= */}
+
+          <Route path="/" element={<Home />} />
+
+          <Route path="/login" element={<Login />} />
+
+          <Route path="/register" element={<Register />} />
+
+
+          {/* ================================================= */}
+          {/* AI INTERVIEW                                      */}
+          {/* No MainLayout / no sidebar                        */}
+          {/* ================================================= */}
+
+          <Route
+            path="/interview/:token"
+            element={<Interview />}
+          />
+
+
+          {/* ================================================= */}
+          {/* AUTHENTICATED APPLICATION                         */}
+          {/* MainLayout = Sidebar + Topbar                     */}
+          {/* ================================================= */}
+
+          <Route element={<MainLayout />}>
+
+            {/* ================================================= */}
+            {/* Dashboard according to role                       */}
+            {/* ================================================= */}
+
             <Route
               path="/dashboard"
               element={
@@ -67,7 +104,11 @@ export default function App() {
               }
             />
 
-            {/* Candidate */}
+
+            {/* ================================================= */}
+            {/* CANDIDATE                                         */}
+            {/* ================================================= */}
+
             <Route
               path="/candidate/dashboard"
               element={
@@ -140,7 +181,11 @@ export default function App() {
               }
             />
 
-            {/* Profil partagé */}
+
+            {/* ================================================= */}
+            {/* SHARED PROFILE                                    */}
+            {/* ================================================= */}
+
             <Route
               path="/profile"
               element={
@@ -150,7 +195,11 @@ export default function App() {
               }
             />
 
-            {/* Recruiter */}
+
+            {/* ================================================= */}
+            {/* RECRUITER                                         */}
+            {/* ================================================= */}
+
             <Route
               path="/recruiter/dashboard"
               element={
@@ -177,14 +226,25 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route
-              path="/interview/:token"
-              element={<Interview />}
+              path="/recruiter/interview-report/:applicationId"
+              element={
+                <ProtectedRoute>
+                  <RecruiterInterviewReport />
+                </ProtectedRoute>
+              }
             />
 
-            {/* 404 */}
-            <Route path="*" element={<NotFound />} />
           </Route>
+
+
+          {/* ================================================= */}
+          {/* 404                                                */}
+          {/* ================================================= */}
+
+          <Route path="*" element={<NotFound />} />
+
         </Routes>
       </BrowserRouter>
     </AuthProvider>

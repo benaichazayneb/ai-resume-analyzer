@@ -41,9 +41,6 @@ export default function Jobs() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
       <div>
-        <p className="text-sm text-blue-600">
-          Candidate space
-        </p>
 
         <h1 className="mt-1 text-3xl font-bold text-gray-900">
           Available Job Offers

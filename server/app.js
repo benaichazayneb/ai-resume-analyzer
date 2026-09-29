@@ -38,6 +38,14 @@ app.get("/", (req, res) => {
     message: "Welcome to AI Resume Analyzer API",
   });
 });
+const path = require("path");
+
+app.use(
+  "/uploads",
+  express.static(
+    path.join(__dirname, "uploads")
+  )
+);
 
 app.use("/api/health", healthRoutes);
 

@@ -5,9 +5,18 @@ const Interview = require("../models/Interview");
 const Resume = require("../models/Resume");
 
 const {
-  generateInterviewQuestions,
+  generateNextInterviewQuestion,
 } = require("../services/interviewAIService");
 
+// ============================================================
+// CONSTANTES
+// ============================================================
+
+const MAX_QUESTIONS = 3;
+
+// ============================================================
+// RÉCUPÉRER L'ENTRETIEN À PARTIR DU TOKEN
+// ============================================================
 
 const getInterviewFromToken = async (token) => {
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -21,7 +30,9 @@ const getInterviewFromToken = async (token) => {
 
   const application = await Application.findById(
     decoded.applicationId
-  );
+  )
+    .populate("jobId")
+    .populate("candidateId", "name email");
 
   if (!application) {
     throw new Error("APPLICATION_NOT_FOUND");
@@ -35,10 +46,16 @@ const getInterviewFromToken = async (token) => {
     throw new Error("INTERVIEW_NOT_FOUND");
   }
 
-  return { application, interview };
+  return {
+    application,
+    interview,
+  };
 };
 
-// Renvoyer uniquement la question courante
+// ============================================================
+// RÉCUPÉRER LA QUESTION COURANTE
+// ============================================================
+
 const getCurrentQuestion = (interview) => {
   const index = interview.currentQuestionIndex;
 
@@ -61,16 +78,51 @@ const getCurrentQuestion = (interview) => {
   };
 };
 
-// Récupérer ou reprendre l'entretien
+// ============================================================
+// CONSTRUIRE L'HISTORIQUE DE LA CONVERSATION
+// ============================================================
+
+const buildConversation = (interview) => {
+  return interview.questions.map((item) => ({
+    question: item.question,
+    type: item.type,
+    skill: item.skill,
+    answer: item.answer || "",
+  }));
+};
+
+// ============================================================
+// GESTION DES ERREURS TOKEN
+// ============================================================
+
+const handleTokenError = (error, res) => {
+  if (
+    error.name === "TokenExpiredError" ||
+    error.name === "JsonWebTokenError" ||
+    error.message === "INVALID_INTERVIEW_TOKEN"
+  ) {
+    return res.status(401).json({
+      message: "Lien invalide ou expiré.",
+    });
+  }
+
+  return null;
+};
+
+// ============================================================
+// RÉCUPÉRER / REPRENDRE L'ENTRETIEN
+// ============================================================
+
 exports.getInterviewSession = async (req, res) => {
   try {
     const { application, interview } =
       await getInterviewFromToken(req.params.token);
 
     if (
-      !["INTERVIEW_INVITED", "INTERVIEW_COMPLETED"].includes(
-        application.status
-      )
+      ![
+        "INTERVIEW_INVITED",
+        "INTERVIEW_COMPLETED",
+      ].includes(application.status)
     ) {
       return res.status(403).json({
         message: "Cet entretien n'est pas accessible.",
@@ -80,16 +132,14 @@ exports.getInterviewSession = async (req, res) => {
     return res.status(200).json({
       status: interview.status,
       currentQuestion: getCurrentQuestion(interview),
+      questionCount: interview.questions.length,
+      maxQuestions: MAX_QUESTIONS,
     });
   } catch (error) {
-    if (
-      error.name === "TokenExpiredError" ||
-      error.name === "JsonWebTokenError" ||
-      error.message === "INVALID_INTERVIEW_TOKEN"
-    ) {
-      return res.status(401).json({
-        message: "Lien invalide ou expiré.",
-      });
+    const tokenResponse = handleTokenError(error, res);
+
+    if (tokenResponse) {
+      return tokenResponse;
     }
 
     if (
@@ -101,7 +151,10 @@ exports.getInterviewSession = async (req, res) => {
       });
     }
 
-    console.error("getInterviewSession:", error);
+    console.error(
+      "getInterviewSession:",
+      error
+    );
 
     return res.status(500).json({
       message: "Erreur serveur.",
@@ -109,112 +162,277 @@ exports.getInterviewSession = async (req, res) => {
   }
 };
 
-// Enregistrer une réponse et passer à la question suivante
+// ============================================================
+// ENREGISTRER LA RÉPONSE ET GÉNÉRER LA QUESTION SUIVANTE
+// ============================================================
+
 exports.submitInterviewAnswer = async (req, res) => {
   try {
     const { application, interview } =
       await getInterviewFromToken(req.params.token);
 
-    if (application.status !== "INTERVIEW_INVITED") {
+    // --------------------------------------------------------
+    // Vérifier la candidature
+    // --------------------------------------------------------
+
+    if (
+      application.status !== "INTERVIEW_INVITED"
+    ) {
       return res.status(403).json({
-        message: "Cet entretien n'est plus en cours.",
+        message:
+          "Cet entretien n'est plus en cours.",
       });
     }
+
+    // --------------------------------------------------------
+    // Vérifier le statut de l'entretien
+    // --------------------------------------------------------
 
     if (interview.status === "COMPLETED") {
       return res.status(400).json({
-        message: "L'entretien est déjà terminé.",
+        message:
+          "L'entretien est déjà terminé.",
       });
     }
 
+    // --------------------------------------------------------
+    // Récupérer la réponse
+    // --------------------------------------------------------
+
     const { answer } = req.body;
 
-    if (typeof answer !== "string" || !answer.trim()) {
+    if (
+      typeof answer !== "string" ||
+      !answer.trim()
+    ) {
       return res.status(400).json({
-        message: "Veuillez saisir une réponse.",
+        message:
+          "Veuillez fournir une réponse.",
       });
     }
 
     if (answer.length > 10000) {
       return res.status(400).json({
-        message: "La réponse est trop longue.",
+        message:
+          "La réponse est trop longue.",
       });
     }
 
-    const index = interview.currentQuestionIndex;
+    // --------------------------------------------------------
+    // Vérifier qu'une question existe
+    // --------------------------------------------------------
 
-    if (index >= interview.questions.length) {
+    const currentIndex =
+      interview.currentQuestionIndex;
+
+    if (
+      currentIndex >= interview.questions.length
+    ) {
       return res.status(400).json({
-        message: "Aucune question restante.",
+        message:
+          "Aucune question en attente.",
       });
     }
 
-    // Sauvegarder la réponse actuelle
-    interview.questions[index].answer = answer.trim();
+    // --------------------------------------------------------
+    // Sauvegarder la réponse
+    // --------------------------------------------------------
 
-    // Passer à la question suivante
-    interview.currentQuestionIndex += 1;
+    interview.questions[currentIndex].answer =
+      answer.trim();
 
-    // Vérifier si c'était la dernière question
+    // --------------------------------------------------------
+    // Incrémenter l'index
+    // --------------------------------------------------------
+
+    interview.currentQuestionIndex =
+      currentIndex + 1;
+
+    // --------------------------------------------------------
+    // Vérifier la limite maximale
+    // --------------------------------------------------------
+
     if (
       interview.currentQuestionIndex >=
-      interview.questions.length
+      MAX_QUESTIONS
     ) {
       interview.status = "COMPLETED";
       interview.completedAt = new Date();
 
-      application.status = "INTERVIEW_COMPLETED";
+      application.status =
+        "INTERVIEW_COMPLETED";
+
+      await interview.save();
       await application.save();
+
+      return res.status(200).json({
+        message:
+          "Entretien terminé.",
+        status: interview.status,
+        currentQuestion: null,
+      });
     }
+
+    // --------------------------------------------------------
+    // Récupérer le CV
+    // --------------------------------------------------------
+
+    const resume = await Resume.findById(
+      application.resumeId
+    );
+
+    if (!resume) {
+      return res.status(404).json({
+        message:
+          "CV du candidat introuvable.",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Construire l'historique
+    // --------------------------------------------------------
+
+    const conversation =
+      buildConversation(interview);
+
+    // --------------------------------------------------------
+    // Demander à Gemini une nouvelle question
+    // --------------------------------------------------------
+
+    const nextQuestion =
+      await generateNextInterviewQuestion({
+        jobTitle:
+          application.jobId?.title || "",
+
+        jobDescription:
+          application.jobId?.description || "",
+
+        candidateSkills:
+          resume.skills?.technicalSkills || [],
+
+        resumeText:
+          resume.rawText || "",
+
+        conversation,
+
+        questionNumber:
+          interview.currentQuestionIndex + 1,
+
+        maxQuestions: MAX_QUESTIONS,
+      });
+
+    // --------------------------------------------------------
+    // Vérifier la réponse Gemini
+    // --------------------------------------------------------
+
+    if (
+      !nextQuestion ||
+      !nextQuestion.question
+    ) {
+      throw new Error(
+        "GEMINI_QUESTION_GENERATION_FAILED"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Ajouter la nouvelle question
+    // --------------------------------------------------------
+
+    interview.questions.push({
+      question:
+        nextQuestion.question.trim(),
+
+      type:
+        nextQuestion.type || "BEHAVIORAL",
+
+      skill:
+        nextQuestion.skill || "",
+
+      answer: "",
+    });
 
     await interview.save();
 
-    if (interview.status === "COMPLETED") {
-    application.status = "INTERVIEW_COMPLETED";
-    await application.save();
-    }
+    // --------------------------------------------------------
+    // Retourner la nouvelle question
+    // --------------------------------------------------------
 
     return res.status(200).json({
       message:
-        interview.status === "COMPLETED"
-          ? "Entretien terminé."
-          : "Réponse enregistrée.",
-      status: interview.status,
-      currentQuestion: getCurrentQuestion(interview),
+        "Réponse enregistrée. Nouvelle question générée.",
+
+      status:
+        interview.status,
+
+      currentQuestion:
+        getCurrentQuestion(interview),
+
+      questionCount:
+        interview.questions.length,
+
+      maxQuestions:
+        MAX_QUESTIONS,
     });
-    } catch (error) {
-    if (
-      error.name === "TokenExpiredError" ||
-      error.name === "JsonWebTokenError" ||
-      error.message === "INVALID_INTERVIEW_TOKEN"
-    ) {
-      return res.status(401).json({
-        message: "Lien invalide ou expiré.",
-      });
+  } catch (error) {
+    const tokenResponse =
+      handleTokenError(error, res);
+
+    if (tokenResponse) {
+      return tokenResponse;
     }
 
     if (
-      error.message === "APPLICATION_NOT_FOUND" ||
-      error.message === "INTERVIEW_NOT_FOUND"
+      error.message ===
+        "APPLICATION_NOT_FOUND" ||
+      error.message ===
+        "INTERVIEW_NOT_FOUND"
     ) {
       return res.status(404).json({
-        message: "Entretien introuvable.",
+        message:
+          "Entretien introuvable.",
       });
     }
 
-    console.error("submitInterviewAnswer:", error);
+    if (
+      error.message ===
+      "GEMINI_QUESTION_GENERATION_FAILED"
+    ) {
+      console.error(
+        "Gemini n'a pas généré de question :",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Impossible de générer la prochaine question.",
+      });
+    }
+
+    console.error(
+      "submitInterviewAnswer:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Erreur lors de l'enregistrement de la réponse.",
+      message:
+        "Erreur lors du traitement de la réponse.",
+      error: error.message,
     });
   }
 };
+
+// ============================================================
+// DÉMARRER L'ENTRETIEN
+// ============================================================
 
 exports.startInterview = async (req, res) => {
   try {
     const { token } = req.params;
 
-    // 1. Vérifier le token
+    // --------------------------------------------------------
+    // Vérifier le token
+    // --------------------------------------------------------
+
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET
@@ -225,89 +443,340 @@ exports.startInterview = async (req, res) => {
       !decoded.applicationId
     ) {
       return res.status(401).json({
-        message: "Invitation invalide.",
+        message:
+          "Invitation invalide.",
       });
     }
 
-    // 2. Récupérer la candidature
-    const application = await Application.findById(
-      decoded.applicationId
-    )
-      .populate("jobId")
-      .populate("candidateId", "name email");
+    // --------------------------------------------------------
+    // Récupérer la candidature
+    // --------------------------------------------------------
+
+    const application =
+      await Application.findById(
+        decoded.applicationId
+      )
+        .populate("jobId")
+        .populate(
+          "candidateId",
+          "name email"
+        );
 
     if (!application) {
       return res.status(404).json({
-        message: "Candidature introuvable.",
+        message:
+          "Candidature introuvable.",
       });
     }
 
-    if (application.status !== "INTERVIEW_INVITED") {
+    // --------------------------------------------------------
+    // Vérifier le statut
+    // --------------------------------------------------------
+
+    if (
+      application.status !==
+      "INTERVIEW_INVITED"
+    ) {
       return res.status(403).json({
-        message: "Cette candidature ne peut pas démarrer l'entretien.",
+        message:
+          "Cette candidature ne peut pas démarrer l'entretien.",
       });
     }
 
-    // 3. Vérifier si une session existe déjà
+    // --------------------------------------------------------
+    // Vérifier si une session existe déjà
+    // --------------------------------------------------------
+
     let interview = await Interview.findOne({
       applicationId: application._id,
     });
 
-    if (interview) {
-    return res.status(200).json({
+    // Si une session existe déjà et est en cours,
+    // on la reprend.
+    if (interview && interview.status === "IN_PROGRESS") {
+      return res.status(200).json({
         message: "Session récupérée.",
         status: interview.status,
         currentQuestion: getCurrentQuestion(interview),
-    });
+        questionCount: interview.questions.length,
+        maxQuestions: MAX_QUESTIONS,
+      });
     }
 
-    // 4. Récupérer le CV
-    const resume = await Resume.findById(
-      application.resumeId
-    );
+    // Si une ancienne session est terminée,
+    // on la supprime pour permettre un nouvel entretien.
+    if (interview && interview.status === "COMPLETED") {
+      await Interview.deleteOne({
+        _id: interview._id,
+      });
+
+      interview = null;
+    }
+
+    // --------------------------------------------------------
+    // Récupérer le CV
+    // --------------------------------------------------------
+
+    const resume =
+      await Resume.findById(
+        application.resumeId
+      );
 
     if (!resume) {
       return res.status(404).json({
-        message: "CV introuvable.",
+        message:
+          "CV introuvable.",
       });
     }
 
-    // 5. Générer les questions IA
-    const questions = await generateInterviewQuestions({
-      jobTitle: application.jobId.title,
-      jobDescription: application.jobId.description,
-      candidateSkills:
-        resume.skills?.technicalSkills || [],
-      resumeText: resume.rawText || "",
-    });
+    // --------------------------------------------------------
+    // Générer UNIQUEMENT la première question
+    // --------------------------------------------------------
 
-    // 6. Enregistrer la session
-    interview = await Interview.create({
-      applicationId: application._id,
-      questions,
-      status: "IN_PROGRESS",
-      startedAt: new Date(),
-    });
+    const firstQuestion =
+      await generateNextInterviewQuestion({
+        jobTitle:
+          application.jobId?.title || "",
+
+        jobDescription:
+          application.jobId?.description || "",
+
+        candidateSkills:
+          resume.skills?.technicalSkills || [],
+
+        resumeText:
+          resume.rawText || "",
+
+        conversation: [],
+
+        questionNumber: 1,
+
+        maxQuestions: MAX_QUESTIONS,
+      });
+
+    if (
+      !firstQuestion ||
+      !firstQuestion.question
+    ) {
+      throw new Error(
+        "GEMINI_FIRST_QUESTION_FAILED"
+      );
+    }
+
+    // --------------------------------------------------------
+    // Créer la session
+    // --------------------------------------------------------
+
+    interview =
+      await Interview.create({
+        applicationId:
+          application._id,
+
+        questions: [
+          {
+            question:
+              firstQuestion.question.trim(),
+
+            type:
+              firstQuestion.type ||
+              "EXPERIENCE",
+
+            skill:
+              firstQuestion.skill || "",
+
+            answer: "",
+          },
+        ],
+
+        currentQuestionIndex: 0,
+
+        status: "IN_PROGRESS",
+
+        startedAt: new Date(),
+      });
+
+    // --------------------------------------------------------
+    // Réponse
+    // --------------------------------------------------------
 
     return res.status(201).json({
-    message: "Entretien démarré.",
-    status: interview.status,
-    currentQuestion: getCurrentQuestion(interview),
+      message:
+        "Entretien démarré.",
+
+      status:
+        interview.status,
+
+      currentQuestion:
+        getCurrentQuestion(interview),
+
+      questionCount:
+        interview.questions.length,
+
+      maxQuestions:
+        MAX_QUESTIONS,
     });
-    } catch (error) {
+  } catch (error) {
+    const tokenResponse =
+      handleTokenError(error, res);
+
+    if (tokenResponse) {
+      return tokenResponse;
+    }
+
     if (
-      error.name === "TokenExpiredError" ||
-      error.name === "JsonWebTokenError"
+      error.message ===
+      "GEMINI_FIRST_QUESTION_FAILED"
     ) {
-      return res.status(401).json({
-        message: "Lien invalide ou expiré.",
+      console.error(
+        "Gemini n'a pas généré la première question :",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          "Impossible de préparer l'entretien IA.",
       });
     }
 
-    console.error("Erreur startInterview:", error);
+    console.error(
+      "Erreur startInterview:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Erreur lors du démarrage de l'entretien.",
+      message:
+        "Erreur lors du démarrage de l'entretien.",
+      error: error.message,
+    });
+  }
+};
+// ============================================================
+// UPLOAD DE LA VIDÉO DE L'ENTRETIEN
+// ============================================================
+
+exports.uploadInterviewVideo = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      application,
+      interview,
+    } = await getInterviewFromToken(
+      req.params.token
+    );
+
+    // --------------------------------------------------------
+    // Vérifier la candidature
+    // --------------------------------------------------------
+
+    if (
+      ![
+        "INTERVIEW_INVITED",
+        "INTERVIEW_COMPLETED",
+      ].includes(application.status)
+    ) {
+      return res.status(403).json({
+        message:
+          "Cet entretien n'est pas accessible.",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Vérifier le fichier
+    // --------------------------------------------------------
+
+    console.log("🎥 Fichier reçu :", {
+      filename: req.file?.filename,
+      mimetype: req.file?.mimetype,
+      size: req.file?.size,
+      path: req.file?.path,
+    });
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Aucune vidéo n'a été envoyée.",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Sauvegarder les informations
+    // --------------------------------------------------------
+
+    interview.video = {
+      status: "UPLOADED",
+
+      filename:
+        req.file.filename,
+
+      path:
+        req.file.path,
+
+      mimeType:
+        req.file.mimetype,
+
+      size:
+        req.file.size,
+
+      duration:
+        Number(req.body.duration) || 0,
+
+      uploadedAt:
+        new Date(),
+    };
+
+    await interview.save();
+
+    return res.status(200).json({
+      message:
+        "Vidéo de l'entretien enregistrée.",
+
+      video: {
+        filename:
+          interview.video.filename,
+
+        mimeType:
+          interview.video.mimeType,
+
+        size:
+          interview.video.size,
+
+        duration:
+          interview.video.duration,
+
+        uploadedAt:
+          interview.video.uploadedAt,
+      },
+    });
+  } catch (error) {
+    const tokenResponse =
+      handleTokenError(error, res);
+
+    if (tokenResponse) {
+      return tokenResponse;
+    }
+
+    if (
+      error.message ===
+        "APPLICATION_NOT_FOUND" ||
+      error.message ===
+        "INTERVIEW_NOT_FOUND"
+    ) {
+      return res.status(404).json({
+        message:
+          "Entretien introuvable.",
+      });
+    }
+
+    console.error(
+      "Erreur uploadInterviewVideo:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Erreur lors de l'enregistrement de la vidéo.",
+      error: error.message,
     });
   }
 };

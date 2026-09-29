@@ -9,6 +9,10 @@ const interviewSchema = new mongoose.Schema(
       unique: true,
     },
 
+    // ==========================================================
+    // CONVERSATION
+    // ==========================================================
+
     questions: [
       {
         question: {
@@ -18,7 +22,11 @@ const interviewSchema = new mongoose.Schema(
 
         type: {
           type: String,
-          enum: ["TECHNICAL", "BEHAVIORAL", "EXPERIENCE"],
+          enum: [
+            "TECHNICAL",
+            "BEHAVIORAL",
+            "EXPERIENCE",
+          ],
           required: true,
         },
 
@@ -39,9 +47,17 @@ const interviewSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // ==========================================================
+    // STATUT
+    // ==========================================================
+
     status: {
       type: String,
-      enum: ["READY", "IN_PROGRESS", "COMPLETED"],
+      enum: [
+        "READY",
+        "IN_PROGRESS",
+        "COMPLETED",
+      ],
       default: "READY",
     },
 
@@ -55,13 +71,205 @@ const interviewSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Analyse IA de l'entretien
+    // ==========================================================
+    // VIDÉO
+    // ==========================================================
+
+    video: {
+      status: {
+        type: String,
+        enum: [
+          "NOT_UPLOADED",
+          "UPLOADING",
+          "UPLOADED",
+          "FAILED",
+        ],
+        default: "NOT_UPLOADED",
+      },
+
+      filename: {
+        type: String,
+        default: "",
+      },
+
+      path: {
+        type: String,
+        default: "",
+      },
+
+      mimeType: {
+        type: String,
+        default: "",
+      },
+
+      size: {
+        type: Number,
+        default: 0,
+      },
+
+      duration: {
+        type: Number,
+        default: 0,
+      },
+
+      uploadedAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
+    // ==========================================================
+    // TRANSCRIPTION
+    // ==========================================================
+
+    transcription: {
+      status: {
+        type: String,
+        enum: [
+          "NOT_TRANSCRIBED",
+          "TRANSCRIBING",
+          "COMPLETED",
+          "FAILED",
+        ],
+        default: "NOT_TRANSCRIBED",
+      },
+
+      text: {
+        type: String,
+        default: "",
+      },
+
+      language: {
+        type: String,
+        default: "",
+      },
+
+      transcribedAt: {
+        type: Date,
+        default: null,
+      },
+
+      error: {
+        type: String,
+        default: "",
+      },
+    },
+
+    // ==========================================================
+    // COMPUTER VISION
+    // ==========================================================
+
+    computerVision: {
+      status: {
+        type: String,
+        enum: [
+          "NOT_ANALYZED",
+          "ANALYZING",
+          "COMPLETED",
+          "FAILED",
+        ],
+        default: "NOT_ANALYZED",
+      },
+
+      // Présence d'un visage dans la vidéo
+      faceDetection: {
+        detected: {
+          type: Boolean,
+          default: false,
+        },
+
+        detectionRate: {
+          type: Number,
+          default: null,
+        },
+      },
+
+      // Visibilité du visage
+      faceVisibility: {
+        averageVisibility: {
+          type: Number,
+          default: null,
+        },
+
+        observations: {
+          type: [String],
+          default: [],
+        },
+      },
+
+      // Estimation de la direction du regard
+      gaze: {
+        observations: {
+          type: [String],
+          default: [],
+        },
+      },
+
+      // Mouvements de la tête
+      headMovement: {
+        observations: {
+          type: [String],
+          default: [],
+        },
+      },
+
+      // Qualité générale de la vidéo
+      videoQuality: {
+        brightness: {
+          type: Number,
+          default: null,
+        },
+
+        observations: {
+          type: [String],
+          default: [],
+        },
+      },
+
+      // Présence générale du candidat pendant l'entretien
+      presence: {
+        observations: {
+          type: [String],
+          default: [],
+        },
+      },
+
+      // Résumé des observations CV
+      summary: {
+        type: String,
+        default: "",
+      },
+
+      analyzedAt: {
+        type: Date,
+        default: null,
+      },
+
+      error: {
+        type: String,
+        default: "",
+      },
+    },
+
+    // ==========================================================
+    // ANALYSE
+    // ==========================================================
+
     analysis: {
       status: {
         type: String,
-        enum: ["NOT_ANALYZED", "ANALYZING", "COMPLETED", "FAILED"],
+        enum: [
+          "NOT_ANALYZED",
+          "ANALYZING",
+          "COMPLETED",
+          "FAILED",
+        ],
         default: "NOT_ANALYZED",
       },
+
+      // --------------------------------------------------------
+      // SCORES
+      // --------------------------------------------------------
 
       overallScore: {
         type: Number,
@@ -83,6 +291,10 @@ const interviewSchema = new mongoose.Schema(
         default: null,
       },
 
+      // --------------------------------------------------------
+      // RÉSULTATS
+      // --------------------------------------------------------
+
       strengths: {
         type: [String],
         default: [],
@@ -103,6 +315,42 @@ const interviewSchema = new mongoose.Schema(
         default: "",
       },
 
+      // --------------------------------------------------------
+      // OBSERVATIONS DE COMMUNICATION
+      // --------------------------------------------------------
+
+      communicationObservations: {
+        type: [String],
+        default: [],
+      },
+
+      // --------------------------------------------------------
+      // OBSERVATIONS LINGUISTIQUES / TONALITÉ
+      // --------------------------------------------------------
+
+      sentimentObservations: {
+        type: [String],
+        default: [],
+      },
+
+      // --------------------------------------------------------
+      // RÉSUMÉ CV
+      // --------------------------------------------------------
+
+      resumeObservations: {
+        type: [String],
+        default: [],
+      },
+
+      // --------------------------------------------------------
+      // RÉSUMÉ FINAL DU RAPPORT
+      // --------------------------------------------------------
+
+      finalReportSummary: {
+        type: String,
+        default: "",
+      },
+
       analyzedAt: {
         type: Date,
         default: null,
@@ -114,4 +362,7 @@ const interviewSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Interview", interviewSchema);
+module.exports = mongoose.model(
+  "Interview",
+  interviewSchema
+);
